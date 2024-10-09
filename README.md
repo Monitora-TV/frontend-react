@@ -1,139 +1,246 @@
-# react-router-dom + oidc-spa + Vite + Keycloak
+# POC de Autenticação Keycloak para o Monitora TV
 
-> NOTE: If you are starting a new project consider using
-> @tanstack/react-router instead of react-router-dom
-> See the [example setup](https://github.com/keycloakify/oidc-spa/tree/main/examples/tanstack-router)
+Esta POC implanta uma aplicação ReactJS em uma instância AWS EC2 com configuração e setup para lançar a aplicação Monitora TV usando o Nginx e garantindo uma experiência de usuário fluida. 
 
-This example setup is deployed here:  
-https://example-tanstack-router.oidc-spa.dev/
+Instruções para configurar o aplicativo web da POC em uma instância EC2 da AWS, desde o lançamento do servidor até a configuração do Nginx para servir sua aplicação. Neste guia, abordaremos cada passo para implantar uma aplicação ReactJS em um servidor Ubuntu da AWS EC2.
 
-Run locally:
+
+## Pré-requisitos
+
+- Instalação do Keycloak: [ver repositório](https://github.com/Monitora-TV/keycloak-aws)
+
+## Referências
+
+- Deploy React App on AWS EC2 Ubuntu Server With Nginx, SSL And Domain Setup [Assista aqui](https://youtu.be/UK_OVKDRArs?si=G620QaGNjJOA0LGR)
+- [react-router-dom + oidc-spa + Vite + Keycloak](https://docs.oidc-spa.dev/documentation/web-api)
+- [Vite Insee Starter](https://github.com/InseeFrLab/vite-insee-starter)
+- [Todo REST API](https://github.com/InseeFrLab/todo-rest-api)
+- [Exemplo Tanstack Router](https://example-tanstack-router.oidc-spa.dev/)
+- **Nota**: Se você está começando um novo projeto, considere usar `@tanstack/react-router` em vez de `react-router-dom`. Veja a [configuração de exemplo](https://github.com/keycloakify/oidc-spa/tree/main/examples/tanstack-router).
+
+## 1 - Instalação da Infraestrutura
+
+### Criar Instância EC2
+
+O frontend da aplicação Monitora TV será implantado em uma instância separada da instância do Keycloak. Utilize a mesma VPC e Subnet pública da instância criada para o Keycloak. [ver repositório](https://github.com/Monitora-TV/keycloak-aws)
+
+### Criar Grupo de Segurança
+
+- **Regras de entrada**:
+  - TCP 443 (0.0.0.0/0)
+  - TCP 22 (0.0.0.0/0)
+  - TCP 80 (0.0.0.0/0)
+
+### Criar IP Elástico
+
+- IP: `<IP elástico criado>`
+- Alocar o IP elástico à instância criada (`monitoratv-public`).
+
+### Route 53 - Criar Subdomínio
+
+1. Acessar Route 53 > Hosted Zone > `<dominio>.com`
+2. Criar registro `monitoratv.<dominio>.com` do tipo "A" e definir o valor da rota como o IP elástico `<IP elástico criado>`.
+
+## 2 - Criar Chave SSH para Clonar o Repositório GitHub
+
+1. O primeiro passo é criar um par de chaves na máquina cliente (geralmente seu computador):
+   ```bash
+   ssh-keygen
+   ```
+   
+2. Pressione Enter para todas as opções e não adicione uma senha. Em seguida, obtenha a chave com este comando:
+   ```bash
+   cat ~/.ssh/id_rsa.pub
+   ```
+   ou
+   ```bash
+   cat ~/.ssh/id_ed25519.pub
+   ```
+
+3. Adicione as chaves SSH no GitHub: [GitHub Settings](https://github.com/settings/keys)
+
+## 3 - Clonar Repositório 
 
 ```bash
-git clone https://github.com/keycloakify/oidc-spa
-cd oidc-spa/examples/react-router
+git clone https://github.com/Monitora-TV/frontend-react.git
+cd frontend-react
 yarn
 yarn dev
 ```
 
+## 4 - Atualizar Instância 
 
-# Setting up a ReactJS Application on AWS EC2
-
-Setting up a web application on an AWS EC2 instance involves several steps, from launching the server to configuring Nginx to serve your application. In this guide, we’ll walk through each step to deploy a ReactJS application on an AWS EC2 Ubuntu server.
-
-## Table of Contents:
-
-1. [Launching an AWS EC2 Ubuntu Server](#launching-an-aws-ec2-ubuntu-server)
-2. [Connecting to the AWS EC2 Instance](#connecting-to-the-aws-ec2-instance)
-3. [Installing Node.js, NPM, and Nginx](#installing-nodejs-npm-and-nginx)
-4. [Cloning the ReactJS App to EC2](#cloning-the-reactjs-app-to-ec2)
-5. [Installing Required Dependencies](#installing-required-dependencies)
-6. [Creating a Production Build](#creating-a-production-build)
-7. [Configuring Nginx](#configuring-nginx)
-8. [Starting the Application](#starting-the-application)
-9. [Domain and SSL setup](#domain-and-ssl-setup)
-10. [Conclusion](#conclusion)
-
-### Complete YouTube Video Tutorial:
-https://youtu.be/UK_OVKDRArs?si=G620QaGNjJOA0LGR
-
-### Step 1: Launch an AWS EC2 Ubuntu Server
-- Log in to the AWS Management Console.
-- Navigate to the EC2 Dashboard.
-- Click on “Launch Instance” and choose an Amazon Machine Image (AMI) with your preferred OS.
-
-### Step 2: Connecting to the EC2 Instance
-
-- Use your preferred SSH terminal to connect to the EC2 instance.
-  - For example, if you’re on a Mac, you can use the Terminal app.
-
-### Step 3: Installing Node.js, NPM, and Nginx
-
-```bash
-sudo apt-get update -y
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-sudo apt install npm -y
-sudo apt install nginx -y
-```
-### Step 4: Cloning ReactJS App to EC2
-
-- For Public Repository:
+- Acesse a instância criada:
   ```bash
-  git clone <YOUR-GIT-Repo>
-  ```
-- For Private Repository:
-  ```bash
-  git clone <YOUR-GIT-Repo>
+  ssh -i "<Utilizar a mesma chave do Keycloak>.pem" ubuntu@exxxx.amazonaws.com
   ```
 
-it will ask you for your GitHub username and password. You can use a Personal Access Token instead of a password.  
-
-### Step 5: Install all the required dependencies
+- Atualizar todos os pacotes da instância:
   ```bash
-  cd <project-folder>
+  sudo apt-get update -y
+  ```
+
+- Instalar Node.js:
+  ```bash
+  sudo apt-get install -y curl
+  curl -fsSL https://deb.nodesource.com/setup_22.x -o nodesource_setup.sh
+  sudo -E bash nodesource_setup.sh
+  sudo apt-get install -y nodejs
+  node -v
+  ```
+
+- Verificar se o npm está instalado; caso contrário, instale:
+  ```bash
+  npm --version
+  sudo apt install npm -y
+  ```
+
+- Instalar Nginx:
+  ```bash
+  sudo apt update 
+  sudo apt install nginx 
+  systemctl status nginx
+  ```
+
+- Testar se o Nginx está rodando:
+  ```
+  http://<IP_PÚBLICO_DA_INSTÂNCIA>
+  ```
+
+- Clonar o projeto:
+  ```bash
+  sudo git clone https://github.com/Monitora-TV/frontend-react.git
+  cd frontend-react
   npm install
-  ```
-### Step 6: Create Production Build
-  ```bash
   npm run build
-  sudo mkdir /var/www/vhosts/frontend/
-  sudo cp -R build/ /var/www/vhosts/frontend/
   ```
-### Step 7: Create Nginx File
-with this command, you can check if already a default nginx file exists. You have to remove it.
 
+- Criar diretório para a aplicação:
+  ```bash
+  sudo mkdir -p /var/www/vhosts/frontend/
+  sudo cp -R dist/ /var/www/vhosts/frontend/
+  ```
+
+## 5 - Configurar Nginx
+
+- Remover arquivo de configuração padrão do Nginx:
+  ```bash
+  cd /etc/nginx/sites-enabled/
+  sudo rm -rf default
+  ```
+
+- Criar um arquivo de configuração para o Nginx:
+  ```bash
+  sudo vim /etc/nginx/sites-available/react
+  ```
+
+- Cole a seguinte configuração dentro do arquivo criado:
+
+  ```nginx
+  server {
+      listen 80 default_server;
+      server_name _;
+
+      location / {
+          autoindex on;
+          root /var/www/vhosts/frontend/dist;
+          try_files $uri /index.html;
+      }
+  }
+  ```
+
+- Ative a configuração:
+  ```bash
+  sudo ln -s /etc/nginx/sites-available/react /etc/nginx/sites-enabled/
+  ```
+
+- Adicione o usuário `www-data` ao grupo `ubuntu`:
+  ```bash
+  sudo gpasswd -a www-data ubuntu
+  ```
+
+- Reinicie o Nginx:
+  ```bash
+  sudo systemctl restart nginx
+  sudo service nginx restart
+  ```
+
+- Testar:
+  ```
+  http://<IP_PÚBLICO_DA_INSTÂNCIA>
+  ```
+
+## 6 - Instalar Certbot para SSL 
 
 ```bash
-cd /etc/nginx/sites-enabled/
-sudo rm -rf default
+sudo apt-get install certbot python3-certbot-nginx
+sudo certbot --nginx -d monitoratv.gustavokanashiro.com
+sudo systemctl reload nginx
 ```
 
-- Create a configuration file for Nginx using the following command:
+- Após criar o certificado com o certbot, verifique o arquivo de configuração Nginx:
   ```bash
-  sudo vim /etc/nginx/sites-available/<nginx-file-name>
+  sudo vim /etc/nginx/sites-available/react
   ```
 
-- Paste the provided server configuration inside the file created.
+### Configuração Nginx
 
-  ```bash
-  server {
+```nginx
+server {
     listen 80 default_server;
     server_name _;
 
     location / {
         autoindex on;
-        root /var/www/vhosts/frontend/build;
+        root /var/www/vhosts/frontend/dist;
         try_files $uri /index.html;
-      }
-  }
-  ```
-  
-- Activate the configuration using the following command:
+    }
+}
 
-  ```bash
-  sudo ln -s /etc/nginx/sites-available/<nginx-file-name> /etc/nginx/sites-enabled/
-  ```
-### Step 8: Start the Application
-- Restart Nginx and allow the changes to take place.
-  ```bash
-  sudo systemctl restart nginx
-  sudo service nginx restart
-  ```
-- Additionally, in case of errors, you can check error logs and status.
-### Step 9: Domain and SSL setup
-**Domain**
+server {
+    server_name monitoratv.gustavokanashiro.com; # managed by Certbot
 
-First, you have to Public IP address or ec2 instance as An R3cord of your domain, it can be on any domain provider like GoDaddy. You can also watch the video.
+    location / {
+        autoindex on;
+        root /var/www/vhosts/frontend/dist;
+        try_files $uri /index.html;
+    }
 
-**SSL Setup**
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/monitoratv.gustavokanashiro.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/monitoratv.gustavokanashiro.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+}
 
-  ```bash
-  sudo apt-get install certbot python3-certbot-nginx
-  sudo certbot --nginx -d <domain-name>
-  sudo systemctl reload nginx
-  ```
-### Step 10: Conclusion
-Deploying a ReactJS application on an AWS EC2 instance requires careful configuration and setup. By following these steps, you can successfully launch your application and serve it using Nginx, ensuring a seamless user experience.
+server {
+    if ($host = monitoratv.gustavokanashiro.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
 
+    listen 81 ;
+    server_name monitoratv.gustavokanashiro.com;
+    return 404; # managed by Certbot
+}
+```
 
+## 7 - Testar Acesso
+
+- Acesse:
+  - [https://monitoratv.gustavokanashiro.com/](https://monitoratv.gustavokanashiro.com/)
+  User: usr_admin
+  Password: 102030  
+
+Caso não tenha criado anteriormente um usuário, acesso o keycloak e fala o cadastro de um usuário no realm "Monitora TV"
+  - [https://keycloak.gustavokanashiro.com/auth/](https://keycloak.gustavokanashiro.com/auth/)
+  User: admin
+  Password: admin@102030  
+
+## Exemplo de Configuração
+
+Esta configuração de exemplo está implantada aqui:  
+[https://monitoratv.gustavokanashiro.com/](https://monitoratv.gustavokanashiro.com/)
+
+### Vídeo Tutorial Completo no YouTube
+
+[Assista aqui](https://youtu.be/UK_OVKDRArs?si=G620QaGNjJOA0LGR)
